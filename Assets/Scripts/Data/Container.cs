@@ -9,6 +9,8 @@ using UnityEngine;
 public class Container : MonoBehaviour
 {
     public Vector3 containerPosition;
+
+    private Dictionary<Vector3, Voxel> data;
     private MeshData meshData = new MeshData();
 
     private MeshFilter meshFilter;
@@ -19,9 +21,14 @@ public class Container : MonoBehaviour
     public void Initialize(Material mat, Vector3 position)
     {
         ConfigureComponents();
+        data = new Dictionary<Vector3, Voxel>();
         meshRenderer.sharedMaterial = mat;
         containerPosition = position;
+    }
 
+    public void ClearData()
+    {
+        data.Clear();
     }
 
     //Configure the components of the container
@@ -37,31 +44,41 @@ public class Container : MonoBehaviour
     {
         meshData.ClearData();
 
-        Vector3 blockPos = new Vector3(8, 8, 8); //single block position to draw the cube
-        Voxel block = new Voxel() { ID = 1 }; //Create a new Voxel with an ID of 1
+        Vector3 blockPos;
+        Voxel block; //single block to draw the cube
 
         int counter = 0;
         Vector3[] faceVertices = new Vector3[4];
         Vector2[] faceUVs = new Vector2[4];
 
-        //Itereate over each face of the cube
-        for (int i = 0 ; i < 6; i++)
+        foreach (KeyValuePair<Vector3, Voxel> kvp in data)
         {
-            //Draw the face if the block is solid
+            if (kvp.Value.ID == 0)
+                continue;
 
-            //Collect the appropriate vertices from the default verticies and add the block positon 
-            for (int j = 0; j < 4; j++)
+            blockPos = kvp.Key;
+            block = kvp.Value;
+            //Itereate over each face of the cube
+            for (int i = 0 ; i < 6; i++)
             {
-                faceVertices[j] = voxelVertices[voxelVertexIndex[i, j]] + blockPos;
-                faceUVs[j] = voxelUVs[j];
-            }
+                if (this[blockPos + voxelFaceChecks[i]].isSolid)
+                    continue;
+                    //Draw the face if the block is solid
 
-            for (int j = 0; j < 6; j++)
-            {
-                meshData.vertices.Add(faceVertices[voxelTris[i, j]]);
-                meshData.UVs.Add(faceUVs[voxelTris[i, j]]);
-                meshData.triangles.Add(counter++);
-            }
+                //Collect the appropriate vertices from the default verticies and add the block positon 
+                for (int j = 0; j < 4; j++)
+                {
+                    faceVertices[j] = voxelVertices[voxelVertexIndex[i, j]] + blockPos;
+                    faceUVs[j] = voxelUVs[j];
+                }
+
+                for (int j = 0; j < 6; j++)
+                {
+                    meshData.vertices.Add(faceVertices[voxelTris[i, j]]);
+                    meshData.UVs.Add(faceUVs[voxelTris[i, j]]);
+                    meshData.triangles.Add(counter++);
+                }
+            }            
         }
 
     }
@@ -77,6 +94,27 @@ public class Container : MonoBehaviour
             meshCollider.sharedMesh = meshData.mesh;
     
     }
+
+    public Voxel this[Vector3 index]
+    {
+        get
+        {
+            if (data.ContainsKey(index))
+                return data[index];
+            else
+                return emptyVoxel;
+        }
+
+        set
+        {
+            if (data.ContainsKey(index))
+                data[index] = value;
+            else
+                data.Add(index, value);
+        }
+    }
+
+    public static Voxel emptyVoxel = new Voxel() { ID = 0 };
 
     #region Mesh Data
 
@@ -139,6 +177,16 @@ public class Container : MonoBehaviour
         new Vector3(1, 0, 1), //5 - bottom right of cube on front face
         new Vector3(0, 1, 1), //6 - top right of cube on front face
         new Vector3(1, 1, 1) //7   - top left of cube on front face
+    };
+
+    static readonly Vector3[] voxelFaceChecks = new Vector3[6]
+    {
+        new Vector3(0, 0, -1), //Back face
+        new Vector3(0, 0, 1), //Front face
+        new Vector3(-1, 0, 0), //Left face
+        new Vector3(1, 0, 0), //Right face
+        new Vector3(0, -1, 0), //Bottom face
+        new Vector3(0, 1, 0) //Top face
     };
 
     static readonly int[,] voxelVertexIndex = new int[6, 4]
