@@ -4,11 +4,26 @@ using UnityEngine;
 
 public class WorldManager : MonoBehaviour
 {
+
     public Material worldMaterial;
     private Container container;
-    // Start is called before the first frame update
+
+    public VoxelColor[] WorldColors;
+
     void Start()
     {
+        if (_instance != null)
+        {
+            if (_instance != this)
+            {
+                Destroy(this);
+            }
+            else
+            {
+                _instance = this;
+            }
+        }
+
         GameObject cont = new GameObject("Container");
         cont.transform.parent = transform;
         container = cont.AddComponent<Container>();
@@ -31,9 +46,17 @@ public class WorldManager : MonoBehaviour
         
     }
 
-    // Update is called once per frame
-    void Update()
+    //Make a singleton for the colors might be less efficient but it's easier to manage
+    private static WorldManager _instance; //Set up a static reference to world manager
+    public static WorldManager Instance
     {
-        
+        get
+        {
+            if (_instance == null)
+            {
+                _instance = FindObjectOfType<WorldManager>();
+            }
+            return _instance;
+        }
     }
 }

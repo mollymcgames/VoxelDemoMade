@@ -51,6 +51,10 @@ public class Container : MonoBehaviour
         Vector3[] faceVertices = new Vector3[4];
         Vector2[] faceUVs = new Vector2[4];
 
+        VoxelColor voxelColor;
+        Color voxelColorAlpha;
+        Vector2 voxelSmoothness;
+
         foreach (KeyValuePair<Vector3, Voxel> kvp in data)
         {
             if (kvp.Value.ID == 0)
@@ -58,6 +62,12 @@ public class Container : MonoBehaviour
 
             blockPos = kvp.Key;
             block = kvp.Value;
+
+            voxelColor = WorldManager.Instance.WorldColors[block.ID - 1]; //0 is air so index this way so not to get out of bounds error
+            voxelColorAlpha = voxelColor.color; //color
+            voxelColorAlpha.a = 1; //alpha 
+            voxelSmoothness = new Vector2(voxelColor.metallic, voxelColor.smoothness);
+
             //Itereate over each face of the cube
             for (int i = 0 ; i < 6; i++)
             {
@@ -76,6 +86,9 @@ public class Container : MonoBehaviour
                 {
                     meshData.vertices.Add(faceVertices[voxelTris[i, j]]);
                     meshData.UVs.Add(faceUVs[voxelTris[i, j]]);
+
+                    meshData.colors.Add(voxelColorAlpha);
+                    meshData.UVs2.Add(voxelSmoothness);
                     meshData.triangles.Add(counter++);
                 }
             }            
@@ -125,6 +138,8 @@ public class Container : MonoBehaviour
         public List<Vector3> vertices;
         public List<int> triangles;
         public List<Vector2> UVs;
+        public List<Vector2> UVs2; // Use UVs2 as there will be the option to add textures
+        public List<Color> colors;
 
         public bool Initialized;
 
@@ -135,6 +150,8 @@ public class Container : MonoBehaviour
                 vertices = new List<Vector3>();
                 triangles = new List<int>();
                 UVs = new List<Vector2>();
+                UVs2 = new List<Vector2>();
+                colors = new List<Color>();
 
                 Initialized = true;
                 mesh = new Mesh();
@@ -144,6 +161,8 @@ public class Container : MonoBehaviour
                 vertices.Clear();
                 triangles.Clear();
                 UVs.Clear();
+                UVs2.Clear();
+                colors.Clear();
                 mesh.Clear();
             }
         }
@@ -152,7 +171,10 @@ public class Container : MonoBehaviour
         {
             mesh.SetVertices(vertices);
             mesh.SetTriangles(triangles, 0, false);
+            mesh.SetColors(colors);
+            
             mesh.SetUVs(0, UVs);
+            mesh.SetUVs(2, UVs2); //2nd channel
             mesh.Optimize();
 
             mesh.RecalculateNormals();
