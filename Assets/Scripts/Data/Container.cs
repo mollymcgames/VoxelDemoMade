@@ -5,7 +5,6 @@ using UnityEngine;
 [RequireComponent(typeof(MeshFilter))]
 [RequireComponent(typeof(MeshRenderer))]
 [RequireComponent(typeof(MeshCollider))]
-
 public class Container : MonoBehaviour
 {
     public Vector3 containerPosition;
@@ -17,13 +16,31 @@ public class Container : MonoBehaviour
     private MeshRenderer meshRenderer;
     private MeshCollider meshCollider;
 
-    //Assign the material to the mesh renderer and set the position of the container
+    // Separate components for the outline
+    private GameObject outlineObject;
+    private MeshFilter outlineMeshFilter;
+    private MeshRenderer outlineMeshRenderer;
+    private Material outlineMaterial;
+
+    // Assign the material to the mesh renderer and set the position of the container
     public void Initialize(Material mat, Vector3 position)
     {
         ConfigureComponents();
         data = new Dictionary<Vector3, Voxel>();
         meshRenderer.sharedMaterial = mat;
         containerPosition = position;
+
+        // Initialize the outline object
+        outlineObject = new GameObject("Outline");
+        outlineObject.transform.SetParent(transform);
+        outlineObject.transform.localPosition = Vector3.zero;
+        outlineObject.AddComponent<MeshFilter>();
+        outlineMeshRenderer = outlineObject.AddComponent<MeshRenderer>();
+
+        // Create a new material with a black color for the outline
+        outlineMaterial = new Material(Shader.Find("Hidden/Internal-Colored"));
+        outlineMaterial.color = Color.black;
+        outlineMeshRenderer.sharedMaterial = outlineMaterial;
     }
 
     public void ClearData()
@@ -31,15 +48,30 @@ public class Container : MonoBehaviour
         data.Clear();
     }
 
-    //Configure the components of the container
+    // Configure the components of the container
     private void ConfigureComponents()
     {
         meshFilter = GetComponent<MeshFilter>();
         meshRenderer = GetComponent<MeshRenderer>();
         meshCollider = GetComponent<MeshCollider>();
+
+        // Initialize the outline components
+        if (outlineObject == null)
+        {
+            outlineObject = new GameObject("Outline");
+            outlineObject.transform.SetParent(transform);
+            outlineObject.transform.localPosition = Vector3.zero;
+            outlineMeshFilter = outlineObject.AddComponent<MeshFilter>();
+            outlineMeshRenderer = outlineObject.AddComponent<MeshRenderer>();
+
+            // Create a new material with a black color for the outline
+            outlineMaterial = new Material(Shader.Find("Hidden/Internal-Colored"));
+            outlineMaterial.color = Color.black;
+            outlineMeshRenderer.sharedMaterial = outlineMaterial;
+        }
     }
 
-    //Create a function to do something
+    // Create a function to do something
     public void GenerateMesh()
     {
         meshData.ClearData();
@@ -68,14 +100,13 @@ public class Container : MonoBehaviour
             voxelColorAlpha.a = 1; //alpha 
             voxelSmoothness = new Vector2(voxelColor.metallic, voxelColor.smoothness);
 
-            //Itereate over each face of the cube
+            //Iterate over each face of the cube
             for (int i = 0 ; i < 6; i++)
             {
                 if (this[blockPos + voxelFaceChecks[i]].isSolid)
-                    continue;
-                    //Draw the face if the block is solid
+                    continue; //Draw the face if the block is solid
 
-                //Collect the appropriate vertices from the default verticies and add the block positon 
+                //Collect the appropriate vertices from the default vertices and add the block position 
                 for (int j = 0; j < 4; j++)
                 {
                     faceVertices[j] = voxelVertices[voxelVertexIndex[i, j]] + blockPos;
@@ -91,9 +122,19 @@ public class Container : MonoBehaviour
                     meshData.UVs2.Add(voxelSmoothness);
                     meshData.triangles.Add(counter++);
                 }
+
+                //Generate the line vertices for the outline
+                for (int j = 0; j < 4; j++)
+                {
+                    int currentIndex = meshData.lineVertices.Count;
+                    meshData.lineVertices.Add(faceVertices[j]);
+                    meshData.lineVertices.Add(faceVertices[(j + 1) % 4]);
+
+                    meshData.lineIndices.Add(currentIndex);
+                    meshData.lineIndices.Add(currentIndex + 1);
+                }
             }            
         }
-
     }
 
     public void UploadMesh()
@@ -105,7 +146,10 @@ public class Container : MonoBehaviour
         meshFilter.mesh = meshData.mesh;
         if (meshData.vertices.Count > 3)
             meshCollider.sharedMesh = meshData.mesh;
-    
+
+        // Assign the outline mesh to the outline mesh filter
+        outlineMeshFilter = outlineObject.GetComponent<MeshFilter>();
+        outlineMeshFilter.mesh = meshData.lineMesh;
     }
 
     public Voxel this[Vector3 index]
@@ -131,7 +175,7 @@ public class Container : MonoBehaviour
 
     #region Mesh Data
 
-    //Create a mesh with the given vertices, triangles, and normals
+    // Create a mesh with the given vertices, triangles, and normals
     public struct MeshData
     {
         public Mesh mesh;
@@ -140,6 +184,10 @@ public class Container : MonoBehaviour
         public List<Vector2> UVs;
         public List<Vector2> UVs2; // Use UVs2 as there will be the option to add textures
         public List<Color> colors;
+
+        // New lists for line vertices and indices
+        public List<Vector3> lineVertices;
+        public List<int> lineIndices;
 
         public bool Initialized;
 
@@ -153,6 +201,10 @@ public class Container : MonoBehaviour
                 UVs2 = new List<Vector2>();
                 colors = new List<Color>();
 
+                // Initialize new lists for lines
+                lineVertices = new List<Vector3>();
+                lineIndices = new List<int>();
+
                 Initialized = true;
                 mesh = new Mesh();
             }
@@ -164,6 +216,10 @@ public class Container : MonoBehaviour
                 UVs2.Clear();
                 colors.Clear();
                 mesh.Clear();
+
+                // Clear the lists for lines
+                lineVertices.Clear();
+                lineIndices.Clear();
             }
         }
 
@@ -172,21 +228,28 @@ public class Container : MonoBehaviour
             mesh.SetVertices(vertices);
             mesh.SetTriangles(triangles, 0, false);
             mesh.SetColors(colors);
-            
+
             mesh.SetUVs(0, UVs);
-            mesh.SetUVs(2, UVs2); //2nd channel
+            mesh.SetUVs(2, UVs2); // 2nd channel
             mesh.Optimize();
 
             mesh.RecalculateNormals();
             mesh.RecalculateBounds();
             mesh.UploadMeshData(false);
+
+            // Create a separate mesh for the lines
+            Mesh lineMesh = new Mesh();
+            lineMesh.SetVertices(lineVertices);
+            lineMesh.SetIndices(lineIndices.ToArray(), MeshTopology.Lines, 0);
+            this.lineMesh = lineMesh; // Store the line mesh in a field
         }
 
+        public Mesh lineMesh; // Field to store the line mesh
     }
 
     #endregion
 
-    //Region that makes up the mesh data
+    // Region that makes up the mesh data
     #region Voxel Statics
     static readonly Vector3[] voxelVertices = new Vector3[8]
     {
